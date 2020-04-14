@@ -42,10 +42,8 @@ fn data_handler(mut data: &[u8], size: usize) {
     let mut read = 2;
     for x in 0..segments {
         let segment_type = data[read];
-        println!("Type is {}", segment_type);
         read+=1;
         let segment_length = data[read] as usize;
-        println!("Length is {}", segment_length);
         read+=1;
         let data_r = std::str::from_utf8(&data[read..read+segment_length]);
         read+=segment_length;
