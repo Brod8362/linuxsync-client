@@ -6,33 +6,7 @@ use std::thread::sleep;
 use std::str;
 use std::collections::HashMap;
 
-fn start_notification() {
-    let result = Notification::new()
-        .summary("LinuxSync")
-        .body("Searching for phone...")
-        .show();
-}
-
-fn connection_established(addr: SocketAddr) {
-    let result = Notification::new()
-        .summary("LinuxSync")
-        .body(format!("Connected to {}", addr).as_str())
-        .show();
-}
-
-fn connection_lost(addr: SocketAddr) {
-    let result = Notification::new()
-        .summary("LinuxSync")
-        .body(format!("Connection to {} lost.", addr).as_str())
-        .show();
-}
-
-fn notification(title: &str, text: &str) {
-    Notification::new()
-        .summary(title)
-        .body(text)
-        .show();
-}
+mod notifications;
 
 fn data_handler(mut data: &[u8], size: usize) {
     assert_eq!(data[0], 0x3C);
@@ -55,7 +29,7 @@ fn data_handler(mut data: &[u8], size: usize) {
         elements.insert(segment_type, data_f);
     }
     assert_eq!(data[read], 127); //if this assertion fails, invalid packet data was sent
-    notification(elements.get(&1).unwrap(),
+    notifications::send_notification(elements.get(&1).unwrap(),
                  elements.get(&2).unwrap());
 }
 
@@ -78,14 +52,14 @@ fn client_handler(mut stream: TcpStream) {
 }
 
 fn main() {
-    start_notification();
+    notifications::start_notification();
     loop {
         match TcpStream::connect("192.168.1.194:5000") {
             Ok(mut stream) => {
                 let addr = stream.peer_addr().unwrap();
-                connection_established(addr);
+                notifications::connection_established(addr);
                 client_handler(stream); //this returns when the connection is lost
-                connection_lost(addr);
+                notifications::connection_lost(addr);
             }
             Err(_) => {
                 sleep(time::Duration::from_millis(6000));
