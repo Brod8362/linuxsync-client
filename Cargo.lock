@@ -163,7 +163,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "linuxsync-server-rust"
+name = "linuxsync"
 version = "0.1.0"
 dependencies = [
  "dirs 2.0.2",

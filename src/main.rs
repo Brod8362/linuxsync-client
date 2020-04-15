@@ -1,6 +1,6 @@
 use std::net::{TcpStream, Shutdown};
-use std::io::{Read, Write};
-use std::{time, thread};
+use std::io::{Read};
+use std::{time};
 use std::thread::sleep;
 use std::str;
 use std::collections::HashMap;
@@ -10,6 +10,7 @@ use std::borrow::Borrow;
 use std::time::Duration;
 
 mod notifications;
+mod debug;
 mod json_parser;
 
 fn data_handler(data: &[u8], _size: usize) {
@@ -39,13 +40,18 @@ fn data_handler(data: &[u8], _size: usize) {
 
 fn client_handler(mut stream: TcpStream) {
     let mut data = [0 as u8; 1024];
-    stream.set_read_timeout(Option::from(Duration::from_millis(60000)));
+    let res = stream.set_read_timeout(Option::from(Duration::from_millis(60000)));
+    if res.is_err() {
+        panic!("failed to set read timeout")
+    }
     while match stream.read(&mut data) {
         Ok(size) => {
             if size != 0 && data[0] == 0x3C {
                 data_handler(data.as_ref(), size);
+                debug::log(format!("notification of size {}", size).as_str());
             }
             if data[0]==0x7F && data[size]==0x7F {
+                debug::log("shutdown signal received");
                 let res = stream.shutdown(Shutdown::Both);
                 if res.is_err() {
 
@@ -55,6 +61,7 @@ fn client_handler(mut stream: TcpStream) {
             true
         }
         Err(e) => {
+            debug::log("error reading stream data, likely heartbeat timeout");
             println!("error reading stream data {:?}", e);
             let r = stream.shutdown(Shutdown::Both);
             if r.is_err() {
@@ -68,21 +75,27 @@ fn client_handler(mut stream: TcpStream) {
 fn main() {
     let config_json: Value = json_parser::read_config_file();
     let devices = get_devices(config_json.borrow());
+    debug::log(format!("found {} devices in config", devices.len()).as_ref());
     notifications::start_notification();
+    debug::log("starting");
     loop {
         for device in &devices {
+            debug::log(format!("trying to connect to {}", device.ip.as_str()).as_str());
             match TcpStream::connect(device.ip.as_str()) {
                 Ok(stream) => {
+                    debug::log(format!("connected to {}", device.ip.as_str()).as_str());
                     let addr = stream.peer_addr().unwrap();
                     notifications::connection_established(device.name.as_str(), addr);
                     client_handler(stream); //this returns when the connection is lost
                     notifications::connection_lost(device.name.as_str(), addr);
+                    debug::log(format!("connection to {} lost", device.ip.as_str()).as_str());
                 }
                 Err(_) => {
                     //device unavailable
                 }
             }
         }
+        debug::log(format!("tried {} devices, none found. sleeping", devices.len()).as_ref());
         sleep(time::Duration::from_millis(10000));
     }
 }
