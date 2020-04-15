@@ -1,12 +1,13 @@
 use std::net::{TcpStream, Shutdown};
-use std::io::Read;
-use std::time;
+use std::io::{Read, Write};
+use std::{time, thread};
 use std::thread::sleep;
 use std::str;
 use std::collections::HashMap;
 use serde_json::Value;
 use crate::json_parser::get_devices;
 use std::borrow::Borrow;
+use std::time::Duration;
 
 mod notifications;
 mod json_parser;
@@ -31,14 +32,15 @@ fn data_handler(data: &[u8], _size: usize) {
         elements.insert(segment_type, data_f);
     }
     assert_eq!(data[read], 127); //if this assertion fails, invalid packet data was sent
-    notifications::send_notification(elements.get(&1).unwrap(),
-                                     elements.get(&2).unwrap());
+    notifications::send_notification(elements.get(&1).unwrap_or(&""),
+                                     elements.get(&2).unwrap_or(&""),
+                                     elements.get(&3).unwrap_or(&""));
 }
 
 fn client_handler(mut stream: TcpStream) {
     let mut data = [0 as u8; 1024];
-    let mut read = true;
-    while read && match stream.read(&mut data) {
+    stream.set_read_timeout(Option::from(Duration::from_millis(60000)));
+    while match stream.read(&mut data) {
         Ok(size) => {
             if size != 0 && data[0] == 0x3C {
                 data_handler(data.as_ref(), size);
@@ -46,9 +48,9 @@ fn client_handler(mut stream: TcpStream) {
             if data[0]==0x7F && data[size]==0x7F {
                 let res = stream.shutdown(Shutdown::Both);
                 if res.is_err() {
-                    //dont care
+
                 }
-                read = false;
+                false;
             }
             true
         }
@@ -58,7 +60,6 @@ fn client_handler(mut stream: TcpStream) {
             if r.is_err() {
                 //dont care
             }
-            read = false;
             false
         }
     } {}

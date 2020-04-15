@@ -1,5 +1,5 @@
 [package]
-name = "linuxsync-server-rust"
+name = "linuxsync"
 version = "0.1.0"
 authors = ["Brod8362 <brodriguez410@gmail.com>"]
 edition = "2018"

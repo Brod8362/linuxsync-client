@@ -14,13 +14,14 @@ pub fn connection_lost(name: &str, addr: SocketAddr) {
 }
 
 pub fn send_meta_notification(text: &str) {
-    send_notification("LinuxSync", text)
+    send_notification("LinuxSync", text, "")
 }
 
-pub fn send_notification(title: &str, text: &str) {
+pub fn send_notification(title: &str, text: &str, appname: &str) {
     let result = Notification::new()
         .summary(title)
         .body(text)
+        .subtitle(appname)
         .show();
     if result.is_err() {
         println!("some notification showing error");

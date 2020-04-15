@@ -7,7 +7,7 @@ use std::io::Write;
 pub struct Device {
     pub name: String,
     pub ip: String,
-    pub mac: String
+    pub mac: String,
 }
 
 pub fn config_file_path() -> String {
@@ -20,7 +20,7 @@ pub fn config_file_path() -> String {
 pub fn read_config_file() -> Value {
     let data_r = fs::read_to_string(config_file_path());
     if data_r.is_err() {
-       create_config_file();
+        create_config_file();
         return read_config_file();
     }
     let data = data_r.unwrap();
@@ -43,7 +43,7 @@ fn value_to_device(v: &Value) -> Device {
     Device {
         name: v["name"].as_str().unwrap().parse().unwrap(),
         ip: v["ip"].as_str().unwrap().parse().unwrap(),
-        mac: v["mac"].as_str().unwrap().parse().unwrap()
+        mac: v["mac"].as_str().unwrap().parse().unwrap(),
     }
 }
 
