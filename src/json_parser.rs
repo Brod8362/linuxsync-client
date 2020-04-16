@@ -10,6 +10,12 @@ pub struct Device {
     pub mac: String,
 }
 
+pub fn config_file_folder() -> String {
+    let mut osstr = dirs::config_dir().unwrap();
+    osstr.push("linuxsync");
+    return osstr.to_str().unwrap().to_string();
+}
+
 pub fn config_file_path() -> String {
     let mut osstr = dirs::config_dir().unwrap();
     osstr.push("linuxsync");
@@ -48,15 +54,19 @@ fn value_to_device(v: &Value) -> Device {
 }
 
 fn create_config_file() -> bool {
-    let res = File::create(config_file_path());
-    if res.is_ok() {
+    let res1 = fs::create_dir_all(config_file_folder());
+    let res2 = File::create(config_file_path());
+    if res2.is_ok() {
         let data = b"{\n\t\"devices\": [\n\n\t]\n}";
-        let res2 = res.unwrap().write_all(data);
+        let res2 = res2.unwrap().write_all(data);
         if res2.is_err() {
             println!("failed to write new config file");
             println!("{:?}", res2.err());
         }
         return true;
+    }
+    if res1.is_err() || res2.is_err() {
+        panic!("failed to create configuration file");
     }
     false
 }

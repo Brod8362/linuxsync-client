@@ -1,5 +1,5 @@
 use std::net::{TcpStream, Shutdown};
-use std::io::{Read};
+use std::io::{Read, Write};
 use std::{time};
 use std::thread::sleep;
 use std::str;
@@ -40,12 +40,13 @@ fn data_handler(data: &[u8], _size: usize) {
 
 fn client_handler(mut stream: TcpStream) {
     let mut data = [0 as u8; 1024];
-    let res = stream.set_read_timeout(Option::from(Duration::from_millis(60000)));
-    if res.is_err() {
-        panic!("failed to set read timeout")
-    }
+
     while match stream.read(&mut data) {
         Ok(size) => {
+            let res = stream.set_read_timeout(Option::from(Duration::from_millis(20000)));
+            if res.is_err() {
+                panic!("failed to set read timeout")
+            }
             if size != 0 && data[0] == 0x3C {
                 data_handler(data.as_ref(), size);
                 debug::log(format!("notification of size {}", size).as_str());
@@ -57,6 +58,13 @@ fn client_handler(mut stream: TcpStream) {
 
                 }
                 false;
+            }
+            if data[0]==0x1A {
+                let res = stream.write(&[0x1A as u8]);
+                if res.is_err() {
+                    //close the socket and start searching
+                    false;
+                }
             }
             true
         }
