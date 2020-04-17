@@ -67,7 +67,7 @@ fn client_handler(mut stream: TcpStream) {
             cont
         }
         Err(e) => {
-            debug::log(format!("error reading stream data {:?}", e).as_str());
+            debug::log_err(format!("error reading stream data {:?}", e).as_str());
             let r = stream.shutdown(Shutdown::Both);
             if r.is_err() {
                 //dont care
@@ -85,15 +85,15 @@ fn main() {
         panic!("failed to read hostname from config file");
     }
     let hostname = hostname_option.unwrap();
-    debug::log(format!("hostname:{}\nfound {} devices in config", hostname, devices.len()).as_ref());
+    debug::log(format!("hostname: {}\nfound {} devices in config", hostname, devices.len()).as_ref());
     notifications::start_notification();
     debug::log("starting");
     loop {
         for device in &devices {
-            debug::log(format!("trying to connect to {}", device.ip.as_str()).as_str());
+            debug::log(format!("connecting: {}", device.ip.as_str()).as_str());
             match TcpStream::connect(device.ip.as_str()) {
                 Ok(mut stream) => {
-                    debug::log(format!("authenticating with {}", device.ip.as_str()).as_str());
+                    debug::log(format!("authenticating: {}", device.ip.as_str()).as_str());
                     let addr = stream.peer_addr().unwrap();
                     let res = stream.write(hostname.as_bytes());
                     if res.is_err() {
@@ -115,16 +115,16 @@ fn main() {
                             Ok(s) => size=s,
                             Err(e) => {
                                 debug::log_err(format!("connected failed at read: {:?}", e).as_str());
-                                continue;
+                                break;
                             }
                         }
                     }
                     if data[0] == 0xAC {
-                        debug::log(format!("connected to {}", device.ip.as_str()).as_str());
+                        debug::log(format!("connected: {}", device.ip.as_str()).as_str());
                         notifications::connection_established(device.name.as_str(), addr);
                         client_handler(stream); //this returns when the connection is lost
                         notifications::connection_lost(device.name.as_str(), addr);
-                        debug::log(format!("connection to {} lost", device.ip.as_str()).as_str());
+                        debug::log(format!("disconnected: {}", device.ip.as_str()).as_str());
                     } else {
                         debug::log(format!("denied: {}", device.ip.as_str()).as_str());
                         notifications::connection_denied(device.name.as_str(), addr);
