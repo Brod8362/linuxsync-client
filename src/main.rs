@@ -68,8 +68,7 @@ fn client_handler(mut stream: TcpStream) {
             cont
         }
         Err(e) => {
-            debug::log("error reading stream data, likely heartbeat timeout");
-            println!("error reading stream data {:?}", e);
+            debug::log(format!("error reading stream data {:?}", e).as_str());
             let r = stream.shutdown(Shutdown::Both);
             if r.is_err() {
                 //dont care
