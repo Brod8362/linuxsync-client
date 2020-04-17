@@ -16,6 +16,7 @@ mod json_parser;
 fn data_handler(data: &[u8], _size: usize) {
     assert_eq!(data[0], 0x3C);
     let mut elements: HashMap<u8, &str> = HashMap::new();
+    let mut actions: HashMap<&str, i8> = HashMap::new();
     let segments = data[1] as usize;
     let mut read = 2;
     for _ in 0..segments {
@@ -30,12 +31,21 @@ fn data_handler(data: &[u8], _size: usize) {
             continue;
         }
         let data_f = data_r.unwrap();
-        elements.insert(segment_type, data_f);
+
+        if segment_type==0x08 { //special case for action segments as they need to be handled differently
+            let action_index = data[read] as i8;
+            read+=1;
+            actions.insert(data_f, action_index);
+        } else {
+            elements.insert(segment_type, data_f);
+        }
     }
     assert_eq!(data[read], 127); //if this assertion fails, invalid packet data was sent
-    notifications::send_notification(elements.get(&1).unwrap_or(&""),
-                                     elements.get(&2).unwrap_or(&""),
-                                     elements.get(&3).unwrap_or(&""));
+    notifications::send_notification_maps(elements, actions, action_event);
+}
+
+fn action_event(id: &str) {
+    println!("{}",id);
 }
 
 fn client_handler(mut stream: TcpStream) {

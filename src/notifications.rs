@@ -1,5 +1,9 @@
 use notify_rust::Notification;
 use std::net::SocketAddr;
+use std::collections::HashMap;
+use crate::debug;
+
+type NotificationCallback = fn(&str);
 
 pub fn start_notification() {
     send_meta_notification("Searching for devices");
@@ -33,5 +37,37 @@ pub fn send_notification(title: &str, text: &str, appname: &str) {
         .show();
     if result.is_err() {
         println!("some notification showing error");
+    }
+}
+
+pub fn send_notification_maps(elements: HashMap<u8, &str>, actions: HashMap<&str, i8>,
+                              callback: NotificationCallback) {
+    debug::log("preparing to send notification");
+    let title = elements.get(&1).unwrap_or(&"<no title>");
+    let body = elements.get(&2).unwrap_or(&"<no body>");
+    let appname = elements.get(&4).unwrap_or(&"<no appname>");
+    let id = elements.get(&5).unwrap_or(&"0"); //ID should always be present
+
+    let mut notification = Notification::new();
+    notification.summary(title);
+    notification.body(body);
+    notification.subtitle(appname);
+
+    for (k, v) in actions.iter() {
+        notification.action(format!("{}-{}", id, v).as_str(), k);
+    }
+    match notification.show() {
+        Ok(nf) => {
+            nf.wait_for_action(|id| match id {
+                "__closed" => {}
+                _ => {
+                    callback(id);
+                }
+            });
+        }
+        Err(e) => {
+            eprintln!("{:?}", e);
+            panic!("failed to show notification");
+        }
     }
 }
