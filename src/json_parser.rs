@@ -57,7 +57,7 @@ fn create_config_file() -> bool {
     let res1 = fs::create_dir_all(config_file_folder());
     let res2 = File::create(config_file_path());
     if res2.is_ok() {
-        let data = b"{\n\t\"devices\": [\n\n\t]\n}";
+        let data = include_bytes!("res/default.json");
         let res2 = res2.unwrap().write_all(data);
         if res2.is_err() {
             println!("failed to write new config file");

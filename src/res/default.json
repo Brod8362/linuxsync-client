@@ -1,0 +1,10 @@
+{
+  "name": "default",
+  "devices": [
+    {
+      "name": "Default",
+      "ip": "127.0.0.1:5000",
+      "mac": "unused"
+    }
+  ]
+}
