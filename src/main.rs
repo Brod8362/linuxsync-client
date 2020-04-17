@@ -40,12 +40,12 @@ fn data_handler(data: &[u8], _size: usize) {
 
 fn client_handler(mut stream: TcpStream) {
     let mut data = [0 as u8; 1024];
-
     while match stream.read(&mut data) {
         Ok(size) => {
+            let mut cont = true;
             let res = stream.set_read_timeout(Option::from(Duration::from_millis(20000)));
             if res.is_err() {
-                panic!("failed to set read timeout")
+                panic!("failed to set read timeout");
             }
             if size != 0 && data[0] == 0x3C {
                 data_handler(data.as_ref(), size);
@@ -55,18 +55,17 @@ fn client_handler(mut stream: TcpStream) {
                 debug::log("shutdown signal received");
                 let res = stream.shutdown(Shutdown::Both);
                 if res.is_err() {
-
                 }
-                false;
+                cont = false;
             }
             if data[0]==0x1A {
                 let res = stream.write(&[0x1A as u8]);
                 if res.is_err() {
                     //close the socket and start searching
-                    false;
+                    cont = false;
                 }
             }
-            true
+            cont
         }
         Err(e) => {
             debug::log("error reading stream data, likely heartbeat timeout");
