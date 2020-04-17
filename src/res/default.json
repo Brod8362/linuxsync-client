@@ -1,5 +1,5 @@
 {
-  "name": "default",
+  "hostname": "default",
   "devices": [
     {
       "name": "Default",

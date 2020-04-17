@@ -13,6 +13,14 @@ pub fn connection_lost(name: &str, addr: SocketAddr) {
     send_meta_notification(format!("Connection to {} ({}) lost.", name, addr).as_str());
 }
 
+pub fn connection_failed(name: &str, addr: SocketAddr) {
+    send_meta_notification(format!("Failed to connect to {} ({})", name, addr).as_str());
+}
+
+pub fn connection_denied(name: &str, addr: SocketAddr) {
+    send_meta_notification(format!("{} ({}) denied the connection.", name, addr).as_str());
+}
+
 pub fn send_meta_notification(text: &str) {
     send_notification("LinuxSync", text, "")
 }

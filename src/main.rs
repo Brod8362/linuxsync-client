@@ -1,6 +1,6 @@
 use std::net::{TcpStream, Shutdown};
 use std::io::{Read, Write};
-use std::{time};
+use std::time;
 use std::thread::sleep;
 use std::str;
 use std::collections::HashMap;
@@ -51,14 +51,13 @@ fn client_handler(mut stream: TcpStream) {
                 data_handler(data.as_ref(), size);
                 debug::log(format!("notification of size {}", size).as_str());
             }
-            if data[0]==0x7F && data[size]==0x7F {
+            if data[0] == 0x7F && data[size] == 0x7F {
                 debug::log("shutdown signal received");
                 let res = stream.shutdown(Shutdown::Both);
-                if res.is_err() {
-                }
+                if res.is_err() {}
                 cont = false;
             }
-            if data[0]==0x1A {
+            if data[0] == 0x1A {
                 let res = stream.write(&[0x1A as u8]);
                 if res.is_err() {
                     //close the socket and start searching
@@ -81,20 +80,55 @@ fn client_handler(mut stream: TcpStream) {
 fn main() {
     let config_json: Value = json_parser::read_config_file();
     let devices = get_devices(config_json.borrow());
-    debug::log(format!("found {} devices in config", devices.len()).as_ref());
+    let hostname_option = config_json["hostname"].as_str();
+    if hostname_option.is_none() {
+        panic!("failed to read hostname from config file");
+    }
+    let hostname = hostname_option.unwrap();
+    debug::log(format!("hostname:{}\nfound {} devices in config", hostname, devices.len()).as_ref());
     notifications::start_notification();
     debug::log("starting");
     loop {
         for device in &devices {
             debug::log(format!("trying to connect to {}", device.ip.as_str()).as_str());
             match TcpStream::connect(device.ip.as_str()) {
-                Ok(stream) => {
-                    debug::log(format!("connected to {}", device.ip.as_str()).as_str());
+                Ok(mut stream) => {
+                    debug::log(format!("authenticating with {}", device.ip.as_str()).as_str());
                     let addr = stream.peer_addr().unwrap();
-                    notifications::connection_established(device.name.as_str(), addr);
-                    client_handler(stream); //this returns when the connection is lost
-                    notifications::connection_lost(device.name.as_str(), addr);
-                    debug::log(format!("connection to {} lost", device.ip.as_str()).as_str());
+                    let res = stream.write(hostname.as_bytes());
+                    if res.is_err() {
+                        debug::log_err(format!("connected failed at hostname: {:?}", res.unwrap_err()).as_str());
+                        notifications::connection_failed(device.name.as_str(), addr);
+                        continue;
+                    }
+                    let mut data = [0 as u8; 32];
+                    let mut size = 0;
+                    match stream.set_read_timeout(Option::from(Duration::from_millis(20000))) {
+                        Ok(()) => debug::log("set initial read timeout"),
+                        Err(e) => {
+                            debug::log_err(format!("failed to set initial read timeout: {:?}", e).as_str());
+                        }
+                    }
+                    while size == 0 {
+                        let res = stream.read(&mut data);
+                        match res {
+                            Ok(s) => size=s,
+                            Err(e) => {
+                                debug::log_err(format!("connected failed at read: {:?}", e).as_str());
+                                continue;
+                            }
+                        }
+                    }
+                    if data[0] == 0xAC {
+                        debug::log(format!("connected to {}", device.ip.as_str()).as_str());
+                        notifications::connection_established(device.name.as_str(), addr);
+                        client_handler(stream); //this returns when the connection is lost
+                        notifications::connection_lost(device.name.as_str(), addr);
+                        debug::log(format!("connection to {} lost", device.ip.as_str()).as_str());
+                    } else {
+                        debug::log(format!("denied: {}", device.ip.as_str()).as_str());
+                        notifications::connection_denied(device.name.as_str(), addr);
+                    }
                 }
                 Err(_) => {
                     //device unavailable

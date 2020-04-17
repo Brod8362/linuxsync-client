@@ -12,3 +12,9 @@ pub fn log(msg: &str) {
         println!("{}",msg);
     }
 }
+
+pub fn log_err(msg: &str) {
+    if debug_enabled() {
+        eprintln!("{}",msg);
+    }
+}
