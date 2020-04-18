@@ -3,16 +3,14 @@ use std::io::{Read, Write};
 use std::time;
 use std::thread::sleep;
 use std::str;
-use std::collections::HashMap;
 use serde_json::Value;
 use crate::json_parser::get_devices;
 use std::borrow::Borrow;
 use std::time::Duration;
-use crate::protos::packet::NotificationData;
 use crate::protos::auth::ClientDetails;
 use protobuf::Message;
 use openssl::pkey::Private;
-use openssl::rsa::{Rsa, Padding};
+use openssl::rsa::Rsa;
 
 mod notifications;
 mod debug;
@@ -20,63 +18,14 @@ mod json_parser;
 mod protos;
 mod paths;
 mod auth;
-
-fn data_handler_legacy(data: &[u8], _size: usize) {
-    assert_eq!(data[0], 0x3C);
-    let mut elements: HashMap<u8, &str> = HashMap::new();
-    let mut actions: HashMap<&str, i8> = HashMap::new();
-    let segments = data[1] as usize;
-    let mut read = 2;
-    for _ in 0..segments {
-        let segment_type = data[read];
-        read += 1;
-        let segment_length = data[read] as usize;
-        read += 1;
-        let data_r = std::str::from_utf8(&data[read..read + segment_length]);
-        read += segment_length;
-        if data_r.is_err() {
-            //do something bad
-            continue;
-        }
-        let data_f = data_r.unwrap();
-
-        if segment_type == 0x08 { //special case for action segments as they need to be handled differently
-            let action_index = data[read] as i8;
-            read += 1;
-            actions.insert(data_f, action_index);
-        } else {
-            elements.insert(segment_type, data_f);
-        }
-    }
-    assert_eq!(data[read], 127); //if this assertion fails, invalid packet data was sent
-    notifications::send_notification_maps(elements, actions, action_event);
-}
-
-fn data_handler_protobuf(data: &[u8]) {
-    let proto: NotificationData = protobuf::parse_from_bytes::<NotificationData>(data).unwrap();
-    notifications::send_notification_proto(proto.get_title(), proto.get_body(),
-                                           proto.get_app_package(), proto.get_id(),
-                                           proto.get_actions(), action_event);
-}
-
-fn data_handler_rsa(data: &[u8], key: &Rsa<Private>) {
-    let mut buf = [0 as u8; 1024];
-    let res = key.private_decrypt(data, buf.as_mut(), Padding::PKCS1_OAEP);
-    if res.is_err() {
-        debug::log_err("failed to decrypt")
-    } else {
-        let size = res.unwrap();
-        data_handler_protobuf(&buf[0..size]);
-    }
-
-}
+mod data_handlers;
 
 fn action_event(id: &str) {
     println!("{}", id);
 }
 
 fn client_handler(mut stream: TcpStream, private_key: &Rsa<Private>) {
-    let mut data = [0 as u8; 1024];
+    let mut data = [0 as u8; 4096];
     while match stream.read(&mut data) {
         Ok(size) => {
             let mut cont = true;
@@ -85,14 +34,14 @@ fn client_handler(mut stream: TcpStream, private_key: &Rsa<Private>) {
                 panic!("failed to set read timeout");
             }
             if size != 0 && data[0] == 0x3C {
-                data_handler_legacy(data.as_ref(), size);
+                data_handlers::data_handler_legacy(data.as_ref(), size);
                 debug::log(format!("notification of size {}", size).as_str());
             }
             if size != 0 && data[0] == 0x3D {
-                data_handler_protobuf(&data[1..size]);
+                data_handlers::data_handler_protobuf(&data[1..size]);
             }
             if size != 0 && data[0] == 0x3E {
-                data_handler_rsa(&data[1..size], private_key);
+                data_handlers::data_handler_rsa(&data[1..size], private_key);
             }
             if data[0] == 0x7F && data[size] == 0x7F {
                 debug::log("shutdown signal received");
