@@ -11,6 +11,8 @@ use std::time::Duration;
 use crate::protos::packet::NotificationData;
 use crate::protos::auth::ClientDetails;
 use protobuf::Message;
+use openssl::pkey::Private;
+use openssl::rsa::{Rsa, Padding};
 
 mod notifications;
 mod debug;
@@ -50,18 +52,30 @@ fn data_handler_legacy(data: &[u8], _size: usize) {
     notifications::send_notification_maps(elements, actions, action_event);
 }
 
-fn data_handler_protobuf(data: &[u8], _size: usize) {
-    let proto: NotificationData = protobuf::parse_from_bytes::<NotificationData>(&data[1.._size]).unwrap();
+fn data_handler_protobuf(data: &[u8]) {
+    let proto: NotificationData = protobuf::parse_from_bytes::<NotificationData>(data).unwrap();
     notifications::send_notification_proto(proto.get_title(), proto.get_body(),
                                            proto.get_app_package(), proto.get_id(),
                                            proto.get_actions(), action_event);
+}
+
+fn data_handler_rsa(data: &[u8], key: &Rsa<Private>) {
+    let mut buf = [0 as u8; 1024];
+    let res = key.private_decrypt(data, buf.as_mut(), Padding::PKCS1_OAEP);
+    if res.is_err() {
+        debug::log_err("failed to decrypt")
+    } else {
+        let size = res.unwrap();
+        data_handler_protobuf(&buf[0..size]);
+    }
+
 }
 
 fn action_event(id: &str) {
     println!("{}", id);
 }
 
-fn client_handler(mut stream: TcpStream) {
+fn client_handler(mut stream: TcpStream, private_key: &Rsa<Private>) {
     let mut data = [0 as u8; 1024];
     while match stream.read(&mut data) {
         Ok(size) => {
@@ -75,7 +89,10 @@ fn client_handler(mut stream: TcpStream) {
                 debug::log(format!("notification of size {}", size).as_str());
             }
             if size != 0 && data[0] == 0x3D {
-                data_handler_protobuf(data.as_ref(), size);
+                data_handler_protobuf(&data[1..size]);
+            }
+            if size != 0 && data[0] == 0x3E {
+                data_handler_rsa(&data[1..size], private_key);
             }
             if data[0] == 0x7F && data[size] == 0x7F {
                 debug::log("shutdown signal received");
@@ -117,7 +134,7 @@ fn main() {
 
     let mut device_data = ClientDetails::new();
     device_data.set_hostname(hostname.parse().unwrap());
-    let pem: Vec<u8> = pubkey.public_key_to_pem().unwrap();
+    let pem: Vec<u8> = pubkey.public_key_to_der().unwrap();
     device_data.set_pubkey(pem);
 
     let devices = get_devices(config_json.borrow());
@@ -159,7 +176,7 @@ fn main() {
                     if data[0] == 0xAC {
                         debug::log(format!("connected: {}", device.ip.as_str()).as_str());
                         notifications::connection_established(device.name.as_str(), addr);
-                        client_handler(stream); //this returns when the connection is lost
+                        client_handler(stream, &private_key); //this returns when the connection is lost
                         notifications::connection_lost(device.name.as_str(), addr);
                         debug::log(format!("disconnected: {}", device.ip.as_str()).as_str());
                     } else {

@@ -5,22 +5,22 @@ use openssl::pkey::{PKey, Public, Private};
 use std::fs::File;
 use std::io::Write;
 
-pub fn read_pubkey() -> PKey<Public> {
+pub fn read_pubkey() -> Rsa<Public> {
     let key_r= fs::read(paths::pubkey_file_path());
     if key_r.is_err() {
        gen_keys();
         return read_pubkey();
     }
-    PKey::public_key_from_pem(key_r.unwrap().as_slice()).unwrap()
+    Rsa::public_key_from_der(key_r.unwrap().as_slice()).unwrap()
 }
 
-pub fn read_private_key() -> PKey<Private> {
+pub fn read_private_key() -> Rsa<Private> {
     let key_r= fs::read(paths::private_key_file_path());
     if key_r.is_err() {
         gen_keys();
         return read_private_key();
     }
-    PKey::private_key_from_der(key_r.unwrap().as_slice()).unwrap()
+    Rsa::private_key_from_der(key_r.unwrap().as_slice()).unwrap()
 }
 
 fn gen_keys() {
@@ -28,7 +28,7 @@ fn gen_keys() {
     let keypair = Rsa::generate(2048).unwrap();
     let pkey = PKey::from_rsa(keypair).unwrap();
 
-    let pub_key: Vec<u8> = pkey.public_key_to_pem().unwrap();
+    let pub_key: Vec<u8> = pkey.public_key_to_der().unwrap();
     let priv_key: Vec<u8> = pkey.private_key_to_der().unwrap();
 
     let pfile = File::create(paths::pubkey_file_path());
