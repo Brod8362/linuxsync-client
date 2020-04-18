@@ -14,6 +14,8 @@ mod notifications;
 mod debug;
 mod json_parser;
 mod protos;
+mod paths;
+mod auth;
 
 fn data_handler_legacy(data: &[u8], _size: usize) {
     assert_eq!(data[0], 0x3C);

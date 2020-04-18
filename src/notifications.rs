@@ -75,7 +75,7 @@ pub fn send_notification_maps(elements: HashMap<u8, &str>, actions: HashMap<&str
 
 fn show_notification_with_actions(notification: Notification, _callback: NotificationCallback) {
     match notification.show() {
-        Ok(nf) => {
+        Ok(_nf) => {
             // nf.wait_for_action(|id| match id {
             //     "__closed" => {}
             //     _ => {

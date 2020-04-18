@@ -3,6 +3,8 @@ use std::fs::File;
 use serde_json::Value;
 use std::io::Write;
 
+use crate::paths;
+
 #[derive(Debug)]
 pub struct Device {
     pub name: String,
@@ -10,21 +12,9 @@ pub struct Device {
     pub mac: String,
 }
 
-pub fn config_file_folder() -> String {
-    let mut osstr = dirs::config_dir().unwrap();
-    osstr.push("linuxsync");
-    return osstr.to_str().unwrap().to_string();
-}
-
-pub fn config_file_path() -> String {
-    let mut osstr = dirs::config_dir().unwrap();
-    osstr.push("linuxsync");
-    osstr.push("config.json");
-    return osstr.to_str().unwrap().to_string();
-}
 
 pub fn read_config_file() -> Value {
-    let data_r = fs::read_to_string(config_file_path());
+    let data_r = fs::read_to_string(paths::config_file_path());
     if data_r.is_err() {
         create_config_file();
         return read_config_file();
@@ -54,8 +44,8 @@ fn value_to_device(v: &Value) -> Device {
 }
 
 fn create_config_file() -> bool {
-    let res1 = fs::create_dir_all(config_file_folder());
-    let res2 = File::create(config_file_path());
+    let res1 = fs::create_dir_all(paths::config_file_folder_path());
+    let res2 = File::create(paths::config_file_path());
     if res2.is_ok() {
         let data = include_bytes!("res/default.json");
         let res2 = res2.unwrap().write_all(data);
