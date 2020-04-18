@@ -9,6 +9,8 @@ use crate::json_parser::get_devices;
 use std::borrow::Borrow;
 use std::time::Duration;
 use crate::protos::packet::NotificationData;
+use crate::protos::auth::ClientDetails;
+use protobuf::Message;
 
 mod notifications;
 mod debug;
@@ -103,12 +105,23 @@ fn client_handler(mut stream: TcpStream) {
 
 fn main() {
     let config_json: Value = json_parser::read_config_file();
-    let devices = get_devices(config_json.borrow());
+
     let hostname_option = config_json["hostname"].as_str();
     if hostname_option.is_none() {
         panic!("failed to read hostname from config file");
     }
     let hostname = hostname_option.unwrap();
+
+    let pubkey = auth::read_pubkey();
+    let private_key = auth::read_private_key();
+
+    let mut device_data = ClientDetails::new();
+    device_data.set_hostname(hostname.parse().unwrap());
+    let pem: Vec<u8> = pubkey.public_key_to_pem().unwrap();
+    device_data.set_pubkey(pem);
+
+    let devices = get_devices(config_json.borrow());
+
     debug::log(format!("hostname: {}\nfound {} devices in config", hostname, devices.len()).as_ref());
     notifications::start_notification();
     debug::log("starting");
@@ -119,7 +132,7 @@ fn main() {
                 Ok(mut stream) => {
                     debug::log(format!("authenticating: {}", device.ip.as_str()).as_str());
                     let addr = stream.peer_addr().unwrap();
-                    let res = stream.write(hostname.as_bytes());
+                    let res = stream.write(&device_data.write_to_bytes().unwrap());
                     if res.is_err() {
                         debug::log_err(format!("connected failed at hostname: {:?}", res.unwrap_err()).as_str());
                         notifications::connection_failed(device.name.as_str(), addr);
