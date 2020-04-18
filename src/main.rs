@@ -8,12 +8,14 @@ use serde_json::Value;
 use crate::json_parser::get_devices;
 use std::borrow::Borrow;
 use std::time::Duration;
+use crate::protos::packet::NotificationData;
 
 mod notifications;
 mod debug;
 mod json_parser;
+mod protos;
 
-fn data_handler(data: &[u8], _size: usize) {
+fn data_handler_legacy(data: &[u8], _size: usize) {
     assert_eq!(data[0], 0x3C);
     let mut elements: HashMap<u8, &str> = HashMap::new();
     let mut actions: HashMap<&str, i8> = HashMap::new();
@@ -32,9 +34,9 @@ fn data_handler(data: &[u8], _size: usize) {
         }
         let data_f = data_r.unwrap();
 
-        if segment_type==0x08 { //special case for action segments as they need to be handled differently
+        if segment_type == 0x08 { //special case for action segments as they need to be handled differently
             let action_index = data[read] as i8;
-            read+=1;
+            read += 1;
             actions.insert(data_f, action_index);
         } else {
             elements.insert(segment_type, data_f);
@@ -44,8 +46,15 @@ fn data_handler(data: &[u8], _size: usize) {
     notifications::send_notification_maps(elements, actions, action_event);
 }
 
+fn data_handler_protobuf(data: &[u8], _size: usize) {
+    let proto: NotificationData = protobuf::parse_from_bytes::<NotificationData>(&data[1.._size]).unwrap();
+    notifications::send_notification_proto(proto.get_title(), proto.get_body(),
+                                           proto.get_app_package(), proto.get_id(),
+                                           proto.get_actions(), action_event);
+}
+
 fn action_event(id: &str) {
-    println!("{}",id);
+    println!("{}", id);
 }
 
 fn client_handler(mut stream: TcpStream) {
@@ -58,8 +67,11 @@ fn client_handler(mut stream: TcpStream) {
                 panic!("failed to set read timeout");
             }
             if size != 0 && data[0] == 0x3C {
-                data_handler(data.as_ref(), size);
+                data_handler_legacy(data.as_ref(), size);
                 debug::log(format!("notification of size {}", size).as_str());
+            }
+            if size != 0 && data[0] == 0x3D {
+                data_handler_protobuf(data.as_ref(), size);
             }
             if data[0] == 0x7F && data[size] == 0x7F {
                 debug::log("shutdown signal received");
@@ -122,7 +134,7 @@ fn main() {
                     while size == 0 {
                         let res = stream.read(&mut data);
                         match res {
-                            Ok(s) => size=s,
+                            Ok(s) => size = s,
                             Err(e) => {
                                 debug::log_err(format!("connected failed at read: {:?}", e).as_str());
                                 break;

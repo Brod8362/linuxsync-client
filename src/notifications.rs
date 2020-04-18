@@ -2,6 +2,7 @@ use notify_rust::Notification;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 use crate::debug;
+use crate::protos::packet::NotificationData_Action;
 
 type NotificationCallback = fn(&str);
 
@@ -40,6 +41,19 @@ pub fn send_notification(title: &str, text: &str, appname: &str) {
     }
 }
 
+pub fn send_notification_proto(title: &str, body: &str, appname: &str, id: i32,
+                               actions: &[NotificationData_Action], callback: NotificationCallback) {
+    let mut notification = Notification::new();
+    notification.summary(title);
+    notification.body(body);
+    notification.subtitle(appname);
+
+    for action in actions.iter() {
+        notification.action(format!("{}-{}", id, action.get_index()).as_str(), action.get_title());
+    }
+    show_notification_with_actions(notification, callback);
+}
+
 pub fn send_notification_maps(elements: HashMap<u8, &str>, actions: HashMap<&str, i8>,
                               callback: NotificationCallback) {
     debug::log("preparing to send notification");
@@ -56,6 +70,10 @@ pub fn send_notification_maps(elements: HashMap<u8, &str>, actions: HashMap<&str
     for (k, v) in actions.iter() {
         notification.action(format!("{}-{}", id, v).as_str(), k);
     }
+    show_notification_with_actions(notification, callback);
+}
+
+fn show_notification_with_actions(notification: Notification, callback: NotificationCallback) {
     match notification.show() {
         Ok(nf) => {
             nf.wait_for_action(|id| match id {
