@@ -73,15 +73,16 @@ pub fn send_notification_maps(elements: HashMap<u8, &str>, actions: HashMap<&str
     show_notification_with_actions(notification, callback);
 }
 
-fn show_notification_with_actions(notification: Notification, callback: NotificationCallback) {
+fn show_notification_with_actions(notification: Notification, _callback: NotificationCallback) {
     match notification.show() {
         Ok(nf) => {
-            nf.wait_for_action(|id| match id {
-                "__closed" => {}
-                _ => {
-                    callback(id);
-                }
-            });
+            // nf.wait_for_action(|id| match id {
+            //     "__closed" => {}
+            //     _ => {
+            //         callback(id);
+            //     }
+            // });
+            /* blocking call, needs to be disabled */
         }
         Err(e) => {
             eprintln!("{:?}", e);
