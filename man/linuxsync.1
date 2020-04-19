@@ -1,0 +1,49 @@
+.TH LINUXSYNC 1
+.SH NAME
+linuxsync \- send android notifications to linux
+.SH SYNOPSIS
+.B linuxsync
+.SH DESCRIPTION
+sync android notifications to linux
+.SH CONFIGURATION
+The config file is located at \fB$HOME/.config/linuxsync/config.json\fR.
+.PP
+This folder also contains the public and private keys for RSA encryption. Should you need or want to regenerate your keys, simply delete the files and rerun \fIlinuxsync\fR.
+.PP
+Devices to connect to must be inside of the \fIdevices\fR block. There can be multiple items in the block. Note that only one device can be connected to at a time. A device block must have three fields:
+.PP
+\fIip\fR: The IP address and port of the device you want to connect to.
+.PP
+\fIname\fR: The name the device will be referred to.
+.PP
+\fImac\fR: Currently unused.
+.PP
+\fBExample\fR:
+.nf
+    {
+        "ip":"192.168.5.15:5000",
+        "name":"My Phone",
+        "mac":"unused"
+    }
+.fi
+.PP
+If your configuration is incorrect, the program will not run.
+.SH FILES
+.nf
+\fB$HOME/.config/linuxsync/config.json\fR - Main configuration
+\fB$HOME/.config/linuxsync/key.pub\fR - RSA Public Key (PEM format)
+\fB$HOME/.config/linuxsync/key\fR - RSA Private Key (DER format)
+.fi
+.SH TODO
+.nf
+There's still lots to do. Of note:
+- Automatic device scanning with MAC address
+- Ability to disable Protobuf format per-device
+- Ability to disable RSA encryption per-device
+(and other things)
+.fi
+.SH BUGS
+Please report all bugs related to the client to brod8362@gmail.com or on the github issue tracker: https://github.com/brod8362/linuxsync-client
+.PP
+Bugs related to the android app should be filed here: https://github.com/brod8362/linuxsync-app
+
