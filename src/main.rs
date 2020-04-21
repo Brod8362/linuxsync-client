@@ -4,7 +4,7 @@ use std::time;
 use std::thread::sleep;
 use std::str;
 use serde_json::Value;
-use crate::json_parser::get_devices;
+use crate::json_parser::{get_devices, Device};
 use std::borrow::Borrow;
 use std::time::Duration;
 use crate::protos::auth::ClientDetails;
@@ -24,7 +24,7 @@ fn action_event(id: &str) {
     println!("{}", id);
 }
 
-fn client_handler(mut stream: TcpStream, private_key: &Rsa<Private>) {
+fn client_handler(mut stream: &TcpStream, private_key: &Rsa<Private>) {
     let mut data = [0 as u8; 4096];
     while match stream.read(&mut data) {
         Ok(size) => {
@@ -95,42 +95,16 @@ fn main() {
         for device in &devices {
             debug::log(format!("connecting: {}", device.ip.as_str()).as_str());
             match TcpStream::connect(device.ip.as_str()) {
-                Ok(mut stream) => {
-                    debug::log(format!("authenticating: {}", device.ip.as_str()).as_str());
-                    let addr = stream.peer_addr().unwrap();
-                    let res = stream.write(&device_data.write_to_bytes().unwrap());
-                    if res.is_err() {
-                        debug::log_err(format!("connected failed at hostname: {:?}", res.unwrap_err()).as_str());
-                        notifications::connection_failed(device.name.as_str(), addr);
-                        continue;
-                    }
-                    let mut data = [0 as u8; 32];
-                    let mut size = 0;
-                    match stream.set_read_timeout(Option::from(Duration::from_millis(20000))) {
-                        Ok(()) => debug::log("set initial read timeout"),
-                        Err(e) => {
-                            debug::log_err(format!("failed to set initial read timeout: {:?}", e).as_str());
-                        }
-                    }
-                    while size == 0 {
-                        let res = stream.read(&mut data);
-                        match res {
-                            Ok(s) => size = s,
-                            Err(e) => {
-                                debug::log_err(format!("connected failed at read: {:?}", e).as_str());
-                                break;
-                            }
-                        }
-                    }
-                    if data[0] == 0xAC {
+                Ok(stream) => {
+                    if authenticate(&mut device_data, device, &stream) {
                         debug::log(format!("connected: {}", device.ip.as_str()).as_str());
-                        notifications::connection_established(device.name.as_str(), addr);
-                        client_handler(stream, &private_key); //this returns when the connection is lost
-                        notifications::connection_lost(device.name.as_str(), addr);
+                        notifications::connection_established(device.name.as_str());
+                        client_handler(&stream, &private_key); //this returns when the connection is lost
+                        notifications::connection_lost(device.name.as_str());
                         debug::log(format!("disconnected: {}", device.ip.as_str()).as_str());
                     } else {
                         debug::log(format!("denied: {}", device.ip.as_str()).as_str());
-                        notifications::connection_denied(device.name.as_str(), addr);
+                        notifications::connection_denied(device.name.as_str());
                     }
                 }
                 Err(_) => {
@@ -141,4 +115,33 @@ fn main() {
         debug::log(format!("tried {} devices, none found. sleeping", devices.len()).as_ref());
         sleep(time::Duration::from_millis(10000));
     }
+}
+
+fn authenticate(device_data: &mut ClientDetails, device: &Device, mut stream: &TcpStream) -> bool {
+    debug::log(format!("authenticating: {}", device.ip.as_str()).as_str());
+    let res = stream.write(&device_data.write_to_bytes().unwrap());
+    if res.is_err() {
+        debug::log_err(format!("connected failed at hostname: {:?}", res.unwrap_err()).as_str());
+        notifications::connection_failed(device.name.as_str());
+        return false;
+    }
+    let mut data = [0 as u8; 32];
+    let mut size = 0;
+    match stream.set_read_timeout(Option::from(Duration::from_millis(20000))) {
+        Ok(()) => debug::log("set initial read timeout"),
+        Err(e) => {
+            debug::log_err(format!("failed to set initial read timeout: {:?}", e).as_str());
+        }
+    }
+    while size == 0 {
+        let res = stream.read(&mut data);
+        match res {
+            Ok(s) => size = s,
+            Err(e) => {
+                debug::log_err(format!("connected failed at read: {:?}", e).as_str());
+                return false;
+            }
+        }
+    }
+    return data[0] == 0xAC
 }
