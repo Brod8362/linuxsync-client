@@ -133,15 +133,14 @@ fn authenticate(device_data: &mut ClientDetails, device: &Device, mut stream: &T
             debug::log_err(format!("failed to set initial read timeout: {:?}", e).as_str());
         }
     }
-    while size == 0 {
-        let res = stream.read(&mut data);
-        match res {
-            Ok(s) => size = s,
-            Err(e) => {
-                debug::log_err(format!("connected failed at read: {:?}", e).as_str());
-                return false;
-            }
+    let res = stream.read(&mut data);
+    match res {
+        Ok(s) => size = s,
+        Err(e) => {
+            debug::log_err(format!("connected failed at read: {:?}", e).as_str());
+            return false;
         }
     }
-    return data[0] == 0xAC
+
+    return size>0 && data[0] == 0xAC;
 }
